@@ -15,6 +15,73 @@ module.exports.getById = (bookId) => {
   return Book.findOne({ _id: bookId }).lean();
 }
 
+module.exports.getByAuthorId = (authorId) => {
+  if (!mongoose.Types.ObjectId.isValid(authorId)) {
+    return null;
+  }
+  return Book.find({ authorId: authorId });
+}
+
+module.exports.getBySearchTerm = (query) => {
+    return Book.find(
+      { $text: {$search: query}},
+      { score: {$meta: "textScore"}}
+      )
+      .sort({ score: { $meta: "textScore" }}).lean();
+}
+
+module.exports.getAuthorStats = () => {
+  return Book.aggregate([
+    { $group: {
+        _id: "$authorId",
+        averagePageCount: { $avg: "$pageCount" },
+        numBooks: { $sum: 1 },
+        titles: { $addToSet: "$title" }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        authorId: "$_id",
+        averagePageCount: 1,
+        numBooks: 1,
+        titles: 1,
+      },
+    }
+ ])
+}
+
+module.exports.getAuthorStatsAndInfo = () => {
+  return Book.aggregate([
+    {
+      $group: {
+        _id: "$authorId",
+        averagePageCount: { $avg: "$pageCount" },
+        numBooks: { $sum: 1 },
+        titles: { $addToSet: "$title" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        authorId: "$_id",
+        averagePageCount: 1,
+        numBooks: 1,
+        titles: 1,
+      },
+    },
+    {
+      $lookup: {
+        from: "authors",
+        localField: "_id",
+        foreignField: "authorId",
+        as: "author",
+      },
+    },
+    { $unwind: "$author" }
+ ])
+}
+
 module.exports.deleteById = async (bookId) => {
   if (!mongoose.Types.ObjectId.isValid(bookId)) {
     return false;
